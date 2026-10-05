@@ -194,3 +194,78 @@ type Bar struct {
 ```
 
 If the JSON text passed to Unmarshal contains the Bar field of type `Bar`, then the Unmarshal would allocate a new `Bar` and populate it in the given instance of `Foo`, otherwise `Foo.Bar` would remain as a nil pointer.
+
+## Streaming Marshal and Unmarshal
+
+The `encoding/json/v2` package (requires Go 1.27) provides `MarshalWrite` and `UnmarshalRead` functions for working with streams directly without requiring an intermediate `[]byte`.
+
+
+### Marshal vs MarshalWrite
+
+While `json.Marshal` returns an in-memory byte slice,
+`json.MarshalWrite` writes the JSON data directly to an `io.Writer` stream without allocating an intermediate byte slice.
+
+**Signatures:**
+
+```go
+func Marshal(in any, opts ...Options) (out []byte, err error)
+func MarshalWrite(out io.Writer, in any, opts ...options) (err error)
+```
+
+`MarshalWrite` combines marshaling and streaming into a single, straightforward operation.
+
+### Example of MarshalWrite function
+
+- Suppose we have an empty file `message.json` in which we want to store JSON data of following structure:
+    ```go
+    type Message struct {
+        Body string
+        Time int
+    }
+    ```
+- Open the file (with write perms) in the program:
+    ```go
+    file, err := os.OpenFile(name, os.O_RDWR, 0666)
+    ```
+- Create a `Message` instance with desired JSON data:
+    ```go
+    var msg = Message{Body: "Hello", Time: int(time.Now().Unix())}
+    ```
+- Write the `msg` directly to the file:
+    ```go
+    json.MarshalWrite(file, msg)
+    ```
+
+### Unmarshal vs UnmarshalRead
+
+The `json.Unmarshal` processes data already loaded in-memory as a byte slice (`[]byte`),
+whereas `json.UnmarshalRead` streams data directly from an I/O source (`io.Reader`)
+
+- Use `json.Unmarshal` when you already have a byte slice in hand (e.g., pulling a payload from a Redis cache, database blob, or local string literal).
+- Use `json.UnmarshalRead` whenever data originates from a stream (e.g., web requests, reading files from disk, or network sockets)
+
+**Signatures:**
+
+```go
+func Unmarshal(in []byte, out any, opts ...Options) (err error)
+func UnmarshalRead(in io.Reader, out any, opts ...options) (err error)
+```
+
+### Example of UnmarshalRead function
+
+- After running the [MarshalWrite example](#example-of-marshalwrite-function), the `message.json` file would have content like below:
+    ```json
+    { "Body": "Hello", "Time": 1791218035 }
+    ```
+- Open the file in the program:
+    ```go
+    file, err = os.Open(filePath)
+    ```
+- Create an `Message` instance for storing the file contents:
+    ```go
+    var msg Message
+    ```
+- Read the file contents and marshal it simultaneously into the `msg` variable:
+    ```go
+    json.UnmarshalRead(file, &msg)
+    ```

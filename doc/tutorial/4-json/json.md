@@ -135,4 +135,62 @@ Notice, the type of decoded value is a map of keys as string and values as `any`
         }
     }
     ```
-    
+
+## Reference Types
+
+This section will give you an idea about how Unmarshal deals with the fields having reference types such as pointers, slices and maps.
+
+### Slice
+
+In the [previous example](#decoding-arbitrary-data), we learnt how Unmarshal decodes the JSON into a output variable of type `any`.
+
+Now lets decode the same JSON into a variable of type struct:
+
+- Define `Book` struct type:
+
+    ```go
+    type Book struct {
+        Id int
+        Name string
+        Keywords []string
+    }
+    ```
+
+- Create a `Book` instance:
+
+    ```go
+    var b Book
+    ```
+
+    Since no value was passed in initialization, `b.Keywords` would be a nil slice.
+
+    `b`'s header would contain a null data pointer (0x0), meaning no backing array exists yet.
+
+- Decode the `book` JSON
+
+    ```go
+    json.Unmarshal([]byte(book), &b)
+    ```
+
+    `Unmarshal` detects that `b.Keywords` is nil slice.  
+     To populate the field, `Unmarshal` allocates a new backing array on the heap behind the scenes and updates `b.Keywords`'s slice header (Data pointer, len, and cap).
+
+    In case the `book` json did not had some value for `Keywords` field, then the `b.Keywords` would be left as a nil slice.
+
+### Pointer
+
+Pointer fields are handled in similar way as slices by the Unmarshal function.
+
+Suppose the JSON to decode is of type `Foo`:
+
+```go
+type Foo struct {
+    Bar *Bar
+}
+
+type Bar struct {
+    Size int
+}
+```
+
+If the JSON text passed to Unmarshal contains the Bar field of type `Bar`, then the Unmarshal would allocate a new `Bar` and populate it in the given instance of `Foo`, otherwise `Foo.Bar` would remain as a nil pointer.

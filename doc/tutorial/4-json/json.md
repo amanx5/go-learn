@@ -269,3 +269,95 @@ func UnmarshalRead(in io.Reader, out any, opts ...options) (err error)
     ```go
     json.UnmarshalRead(file, &msg)
     ```
+
+## Custom Marshalling
+
+Suppose we have a type representing Semantic version numbers:
+```go
+type Semver struct {
+	Major, Minor, Patch int
+}
+```
+
+By default, marshalling `Semver{0, 0, 1}` would output `{"Major":0,"Minor":0,"Patch":1}`
+```go
+out1, _ := json.Marshal(Semver{0, 0, 1})
+fmt.Println(string(out1))    // {"Major":0,"Minor":0,"Patch":1}
+```
+
+To customize marshalling behaviour of `Semver` type:
+
+-   The `Semver` type must implement the `json.MarshalerTo` interface:
+    ```go
+    type MarshalerTo interface {
+        MarshalJSONTo(*jsontext.Encoder) error
+    }
+    ```
+-   To implement `json.MarshalerTo` interface, the `Semver` type must have MarshalJSONTo method:
+    ```go
+    func (sv Semver) MarshalJSONTo(enc *jsontext.Encoder) error {
+        return json.MarshalEncode(enc, fmt.Sprintf("%d.%d.%d", sv.Major, sv.Minor, sv.Patch))
+    }
+    ```
+-   Marshal will run the custom marshalling logic if the `Semver` type correctly implements the 
+    `json.MarshalerTo` interface and would output `"0.0.1"`:
+    ```go
+	out2, _ := json.Marshal(Semver{0, 0, 1})
+	fmt.Println(string(out2)) // "0.0.1"
+    ```
+
+## Custom Unmarshalling
+
+Suppose we want to decode a semantic version string `"0.0.1"` into our `Semver` struct.
+
+By default, unmarshalling `"0.0.1"` into `Semver` would fail because Go expects a JSON object (`{...}`), not a JSON string:
+
+```go
+var sv1 Semver
+err1 := json.Unmarshal([]byte(`"0.0.1"`), &sv1)
+fmt.Println(err1) // json: cannot unmarshal JSON string into Go main.Semver
+```
+
+To customize unmarshalling behaviour of Semver type:
+
+-   The `Semver` type must implement the `json.UnmarshalerFrom` interface:
+    ```go
+    type UnmarshalerFrom interface {
+        UnmarshalJSONFrom(*jsontext.Decoder) error
+    }
+    ```
+-   To implement `json.UnmarshalerFrom` interface, the pointer type `*Semver`
+    must have an UnmarshalJSONFrom method (a pointer receiver is required
+    so it can mutate the struct's fields):
+    ```go
+    func (sv *Semver) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+        var str string
+        err := json.UnmarshalDecode(dec, &str);
+        if err != nil {
+            return err
+        }
+        _, err2 := fmt.Sscanf(str, "%d.%d.%d", &sv.Major, &sv.Minor, &sv.Patch)
+        return err2
+    }
+    ```
+-   Unmarshal will run the custom unmarshalling logic if the `Semver` type
+    correctly implements the `json.UnmarshalerFrom` interface and will populate
+    the struct fields:
+    ```go
+    var sv2 Semver
+    err2 := json.Unmarshal([]byte(`"0.0.1"`), &sv2)
+    fmt.Println(err2) // <nil>
+    fmt.Println(sv2)  // {0 0 1}
+    ```
+
+## Quick Comparison of JSON methods
+
+In `encoding/json/v2`, there are 3 pairs of functions targeting different mediums:
+
+| Operation | Target / Source Medium | Functions |
+| :--- | :--- | :--- |
+| Buffer | In-memory `[]byte` | `json.Marshal` / `json.Unmarshal` |
+| Stream | `io.Writer` / `io.Reader` | `json.MarshalWrite` / `json.UnmarshalRead` |
+| Token Stream | `*jsontext.Encoder` / `*jsontext.Decoder` | `json.MarshalEncode` / `json.UnmarshalDecode` |
+
+

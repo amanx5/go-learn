@@ -90,3 +90,49 @@ func Unmarshal(in []byte, out any, opts ...Options) (err error)
     fmt.Println(err2)	// <nil>
     fmt.Println(msg2)	// {Aman Hello 2026-09-28 04:00:00 +0000 UTC}
     ```
+
+### Decoding arbitrary data
+
+If we don't know the structure of the JSON in advance, and still want to decode it, we can decode it in `any` type variable:
+
+- Consider JSON:
+    ```go
+    const book = `{
+        "Id": 1,
+        "Name": "Cosmos",
+        "Keywords": ["science", "fiction"]
+    }`
+    ```
+- Unmarshal into `any` type variable:
+
+    ```go
+    var result any
+    json.Unmarshal([]byte(book), &result)
+    ```
+
+- Check the decoded result type and value:
+    ```go
+    fmt.Printf("\n%T", result) // map[string]interface {}
+    fmt.Printf("\n%v", result) // map[Id:1 Keywords:[science fiction] Name:Cosmos]
+    ```
+
+Notice, the type of decoded value is a map of keys as string and values as `any` (`interface{}`).
+
+- To work on individual fields, we can iterate the map keys but the `result` type is still `any`, so we must assert its type as map first:
+
+    ```go
+    resultMap := result.(map[string]any)
+    ```
+
+- Now we can iterate the map keys:
+
+    ```go
+    for key,value := range resultMap {
+
+        switch val := value.(type) {
+           case string:
+           fmt.Println(key, "is string", val)
+        }
+    }
+    ```
+    
